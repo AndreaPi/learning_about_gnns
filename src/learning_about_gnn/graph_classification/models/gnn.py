@@ -1,5 +1,5 @@
 import torch.nn
-from torch.nn import Linear
+from torch.nn import Linear, LogSoftmax
 import torch.nn.functional as F
 from torch_geometric.nn.conv import GraphConv
 from torch_geometric.nn.pool import global_add_pool
@@ -11,9 +11,9 @@ from torchmetrics.functional import accuracy
 class GNN(torch.nn.Module):
     def __init__(
             self,
+            num_classes,
             hidden_dim,
             node_features_dim,
-            edge_features_dim=None
     ):
         super(GNN, self).__init__()
         self.hidden_dim = hidden_dim
@@ -25,7 +25,9 @@ class GNN(torch.nn.Module):
         self.conv5 = GraphConv(hidden_dim, hidden_dim)
 
         self.fc1 = Linear(hidden_dim, hidden_dim)
-        self.fc2 = Linear(hidden_dim, 1)
+        self.fc2 = Linear(hidden_dim, num_classes)
+
+        self.readout = LogSoftmax(dim=-1)
 
     def forward(self, x, edge_index, batch):
         x = F.relu(self.conv1(x, edge_index))
@@ -38,11 +40,15 @@ class GNN(torch.nn.Module):
         x = F.dropout(x, p=0.5, training=self.training)
         x = self.fc2(x)
 
-        return x
+        return self.readout(x)
+
+    def predict_labels(self, x, edge_index, batch):
+        out = self.forward(x, edge_index, batch)
+        return torch.argmax(out, dim=1)  # Use the class with the highest probability/log-probability (log is monotone)
 
     def __update_loss_and_metric(
             self,
-            logits: torch.Tensor,
+            logprobas: torch.Tensor,
             target: torch.Tensor,
             batch_size: int,
             loss_fun,
@@ -50,8 +56,9 @@ class GNN(torch.nn.Module):
             accuracy_accumulator: float
     ) -> Tuple[torch.tensor, float, float]:
 
-        loss = loss_fun(logits, target.float())
-        acc = accuracy(logits, target, threshold=0.)  # threshold=0. if logits, 0.5 if probas
+        loss = loss_fun(logprobas, target)
+        labels = torch.argmax(logprobas, dim=1)
+        acc = accuracy(labels, target, threshold=0.5)  # threshold = 0. if logits, 0.5 if probas
         loss_accumulator += loss * batch_size
         accuracy_accumulator += acc * batch_size
         return loss, loss_accumulator, accuracy_accumulator
@@ -74,7 +81,7 @@ class GNN(torch.nn.Module):
             batch_size = torch.max(batch.batch) + 1
 
             out = self.forward(batch.x, batch.edge_index, batch.batch)
-            target = batch.y.unsqueeze(1)
+            target = batch.y
 
             loss, epoch_loss, epoch_acc = self.__update_loss_and_metric(
                 out,
