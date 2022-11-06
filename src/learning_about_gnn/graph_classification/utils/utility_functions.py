@@ -1,4 +1,3 @@
-import torch
 from typing import Tuple
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
@@ -45,18 +44,13 @@ def plot_training_curves(metric, history, plot_dpi, results_dir):
                 pad_inches=0)
 
 
-def compute_batch_confusion_matrix(model, loader, device=None):
-    if device is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch = next(iter(loader))
-    batch.to(device)
+def compute_batch_confusion_matrix(y_true, y_pred):
+    if y_true.is_cuda:
+        y_true = y_true.cpu().detach().numpy()
+    if y_pred.is_cuda:
+        y_pred = y_pred.cpu().detach().numpy()
 
-    model.to(device)
-    logits = (model(batch.x, batch.edge_index, batch.batch))
-    y_pred = (logits > 0).int()
-    y_true = batch.y.unsqueeze(1)
-
-    return confusion_matrix(y_true.cpu().detach().numpy(), y_pred.cpu().detach().numpy())
+    return confusion_matrix(y_true, y_pred)
 
 
 def plot_confusion_matrix(cm, plot_dpi, labels, results_dir):
