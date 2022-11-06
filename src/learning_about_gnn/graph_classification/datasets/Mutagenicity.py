@@ -42,6 +42,7 @@ def inspect_molecule(molecule: Data) -> None:
     print(f'contains isolated nodes: {molecule.has_isolated_nodes()}')
     print(f'contains self-loops: {molecule.has_self_loops()}')
     print(f'is undirected: {molecule.is_undirected()}')
+    print(f'is mutagenic: {"Y" if molecule.y.item() == 0 else "N"}')
 
 
 def to_molecule(torch_graph: Data) -> nx.Graph:
@@ -64,12 +65,12 @@ def to_molecule(torch_graph: Data) -> nx.Graph:
 def plot_nx_mol(
     G: nx.Graph,
     results_dir: str,
-    index: int,
     edge_mask=None,
     edge_type=None,
     threshold=None,
     drop_isolates=False,
-    ax=None
+    ax=None,
+    plot_basename: str = "molecule.png"
 ):
     """Draw molecule.
     Args:
@@ -77,8 +78,6 @@ def plot_nx_mol(
             Graph with _symbols_ node attribute.
         results_dir: str
             folder with results.
-        index: int
-            molecule index in the Mutagenicity dataset.
         edge_mask : dict, optional
             Dictionary of edge/float items, by default None.
             If given the edges will be color coded. If `threshold` is given,
@@ -93,6 +92,8 @@ def plot_nx_mol(
             Whether to remove isolated nodes, by default True if `threshold` is given else False.
         ax : matplotlib.axes.Axes, optional
             Axis on which to draw the molecule, by default None
+        plot_basename: str, optional
+            the basename of the plot to be written. Full filename = results_dir + plot_basename
     """
     if drop_isolates is None:
         drop_isolates = True if threshold else False
@@ -146,8 +147,8 @@ def plot_nx_mol(
     )
 
     plt.tight_layout()
-    output_filename = Path(results_dir) / f'molecule_nr_{index}.png'
-    plt.savefig(output_filename,
+    full_filename = Path(results_dir) / plot_basename
+    plt.savefig(full_filename,
                 dpi=120,  # use 320 dpi for higher-quality images
                 format='png',
                 transparent=False,
