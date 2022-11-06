@@ -7,8 +7,10 @@ from src.learning_about_gnn.graph_classification.datasets.Mutagenicity import Ad
 from src.learning_about_gnn.graph_classification.utils.utility_functions import train_valid_test_loaders, \
     plot_training_curves, compute_batch_confusion_matrix, plot_confusion_matrix
 from src.learning_about_gnn.graph_classification.models.gnn import GNN
-from torch.nn.functional import binary_cross_entropy_with_logits
-
+from torch.nn.functional import nll_loss
+from torch_geometric.nn.models import GNNExplainer
+torch.manual_seed(0)
+rng = np.random.default_rng(123)
 
 # Parameters
 results_dir = Path("./results")
@@ -32,13 +34,14 @@ dataset = TUDataset(
 # Print some info about the dataset
 inspect_mutagenicity_dataset(dataset)
 print()
-molecule_index = np.random.choice(len(dataset))
+molecule_index = rng.choice(len(dataset))
 molecule = dataset[molecule_index]
 print(f'molecule nr.:{molecule_index}')
 inspect_molecule(molecule)
 
 # Draw a molecule using networkx
-plot_mol(molecule, edge_mask=None, results_dir=results_dir, index=molecule_index)
+plot_basename = f'molecule_nr_{molecule_index}.png'
+plot_mol(molecule, edge_mask=None, results_dir=results_dir, plot_basename=plot_basename)
 
 # create dataloaders
 loader_train, loader_valid, loader_test = train_valid_test_loaders(dataset, p_train, p_valid, batch_size)
@@ -46,6 +49,7 @@ loader_train, loader_valid, loader_test = train_valid_test_loaders(dataset, p_tr
 
 # Initialize model
 model = GNN(
+    num_classes=dataset.num_classes,
     hidden_dim=hidden_dim,
     node_features_dim=dataset.num_node_features,
 ).to(device)
@@ -54,18 +58,26 @@ model = GNN(
 optimizer = torch.optim.Adam(params=model.parameters())
 
 # Loss function
-loss_function = binary_cross_entropy_with_logits
+loss_function = nll_loss
 
 # Train model
 print("\nStart training...")
 history = model.fit(loader_train, loader_valid, optimizer=optimizer, loss_function=loss_function, num_epochs=num_epochs)
 print("Training complete.")
 
+# Evaluation mode
+model.eval()
+
 # Plot training and validation curves
 plot_training_curves('loss', history, plot_dpi, results_dir)
 plot_training_curves('accuracy', history, plot_dpi, results_dir)
 
 # Compute and plot confusion matrix
-cm = compute_batch_confusion_matrix(model, loader_test, device)
+batch = next(iter(loader_test))
+batch.to(device)
+y_pred_test = model.predict_labels(batch.x, batch.edge_index, batch.batch)
+y_true_test = batch.y
+
+cm = compute_batch_confusion_matrix(y_true_test, y_pred_test)
 labels = ['mutagen', 'nonmutagen']
 plot_confusion_matrix(cm, plot_dpi, labels, results_dir)
