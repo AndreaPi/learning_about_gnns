@@ -23,6 +23,7 @@ batch_size = 32
 hidden_dim = 64
 num_epochs = 200
 plot_dpi = 120
+edge_mask_thr = 0.6  # threshold used for the edge mask returned by GNN Explainer
 
 # Load dataset
 dataset = TUDataset(
@@ -81,3 +82,14 @@ y_true_test = batch.y
 cm = compute_batch_confusion_matrix(y_true_test, y_pred_test)
 labels = ['mutagen', 'nonmutagen']
 plot_confusion_matrix(cm, plot_dpi, labels, results_dir)
+
+# Explain predictions for the molecule randomly chosen at the beginning
+molecule.to(device)
+x, edge_index, y = molecule.x, molecule.edge_index, molecule.y
+
+explainer = GNNExplainer(model, epochs=200, return_type='log_prob', feat_mask_type="individual_feature")
+node_feat_mask, edge_mask = explainer.explain_graph(x, edge_index)
+
+# Plot explanation
+plot_basename = f'explanation_molecule_nr_{molecule_index}.png'
+plot_mol(molecule, edge_mask=edge_mask, results_dir=results_dir, threshold=edge_mask_thr, plot_basename=plot_basename)
