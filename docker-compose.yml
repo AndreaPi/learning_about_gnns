@@ -1,0 +1,64 @@
+version: "3.6"
+services:
+
+  # 7774
+  jupyter-geometric-7774:
+    image: "ailab/geometric-jupyter"
+    env_file: "env-file"
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: "nvidia"
+            device_ids: ["4"]
+            capabilities: [gpu]
+    ports: 
+      - "7774:8888"
+      - "7074:8080"
+      - "7224:22" 
+    volumes:
+      - workspace:/workspace
+      - data:/data:ro
+      - data-restricted:/data-restricted:ro
+
+  # 7772
+  jupyter-geometric-7772:
+    image: "ailab/geometric-jupyter"
+    env_file: "env-file"
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: "nvidia"
+            device_ids: ["2"]
+            capabilities: [gpu]
+    ports: 
+      - "7772:8888"
+      - "7072:8080"
+      - "7222:22" 
+    volumes:
+      - workspace:/workspace
+      - data:/data:ro
+      - data-restricted:/data-restricted:ro
+
+
+# VOLUMES
+volumes:
+    workspace:
+      driver: local
+      driver_opts:
+        o: bind
+        type: none
+        device: /raid/ailab/workspace
+    data:
+      driver: local
+      driver_opts:
+        o: bind
+        type: none
+        device: /raid/ailab/data
+    data-restricted:
+      driver: local
+      driver_opts:
+        o: bind
+        type: none
+        device: /raid/ailab/data-restricted
